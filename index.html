@@ -2,13 +2,12 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>AMCOIN</title>
+<title>AMCOIN Spinner</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body { margin:0; overflow:hidden; background:#041226; color:#fff; font-family:sans-serif; touch-action: none; }
 canvas { display:block; background:#061024; }
 #ui { position:absolute; top:10px; left:10px; z-index:10; }
-#ui div { margin-bottom:4px; }
 #menu { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.6); padding:20px; border-radius:12px; text-align:center; }
 #menu input { padding:6px 10px; border-radius:6px; border:none; margin-bottom:10px; width:120px; text-align:center;}
 #menu button { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; background:#4d96ff; color:#fff; font-weight:bold; }
@@ -49,12 +48,12 @@ class Spinner {
   constructor(name,x,y,isPlayer=false){
     this.name=name; this.x=x; this.y=y;
     this.vx=0; this.vy=0;
-    this.radius=18+Math.random()*12;
+    this.radius=20+Math.random()*10;
     this.mass=this.radius*this.radius;
     this.color=randomColor();
     this.isPlayer=isPlayer;
-    this.spin=Math.random()*Math.PI*2;
-    this.spinSpeed=2+Math.random()*4;
+    this.angle=Math.random()*Math.PI*2; // вращение
+    this.spinSpeed=10+Math.random()*10;
     this.alive=true;
   }
   update(dt){
@@ -64,14 +63,27 @@ class Spinner {
     if(this.y<this.radius){this.y=this.radius;this.vy*=-0.4;}
     if(this.x>w-this.radius){this.x=w-this.radius;this.vx*=-0.4;}
     if(this.y>h-this.radius){this.y=h-this.radius;this.vy*=-0.4;}
-    this.spin+=this.spinSpeed*dt;
+    this.angle+=this.spinSpeed*dt;
   }
   draw(ctx){
-    ctx.save(); ctx.translate(this.x,this.y); ctx.rotate(this.spin);
-    ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fillStyle=this.color; ctx.fill();
-    ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
-    ctx.fillStyle="#fff"; ctx.font=`${Math.max(10,this.radius*0.5)}px sans-serif`; ctx.textAlign='center';
-    ctx.fillText(this.name,this.x,this.y-this.radius-8); ctx.fillText(Math.round(this.mass),this.x,this.y+this.radius+12);
+    ctx.save();
+    ctx.translate(this.x,this.y);
+    ctx.rotate(this.angle);
+    // рисуем 3 лопасти
+    for(let i=0;i<3;i++){
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.lineTo(this.radius,0);
+      ctx.lineWidth=4;
+      ctx.strokeStyle=this.color;
+      ctx.stroke();
+      ctx.rotate(Math.PI*2/3);
+    }
+    ctx.restore();
+    ctx.fillStyle="#fff";
+    ctx.font=`${Math.max(10,this.radius*0.5)}px sans-serif`; ctx.textAlign='center';
+    ctx.fillText(this.name,this.x,this.y-this.radius-8);
+    ctx.fillText(Math.round(this.mass),this.x,this.y+this.radius+12);
   }
 }
 
