@@ -3,14 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <title>AMCOIN</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body { margin:0; overflow:hidden; background:#041226; color:#fff; font-family:sans-serif; }
+body { margin:0; overflow:hidden; background:#041226; color:#fff; font-family:sans-serif; touch-action: none; }
 canvas { display:block; background:#061024; }
 #ui { position:absolute; top:10px; left:10px; z-index:10; }
 #ui div { margin-bottom:4px; }
 #menu { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.6); padding:20px; border-radius:12px; text-align:center; }
-#menu input { padding:6px 10px; border-radius:6px; border:none; margin-bottom:10px; }
+#menu input { padding:6px 10px; border-radius:6px; border:none; margin-bottom:10px; width:120px; text-align:center;}
 #menu button { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; background:#4d96ff; color:#fff; font-weight:bold; }
+.button-control { position:absolute; bottom:20px; width:60px; height:60px; background:rgba(77,150,255,0.6); border-radius:50%; display:flex; justify-content:center; align-items:center; font-weight:bold; font-size:20px; user-select:none; }
+#up{left:50%; transform:translateX(-50%);}
+#left{left:30%;}
+#right{right:30%;}
+#boost{right:10%;}
 </style>
 </head>
 <body>
@@ -24,10 +30,14 @@ canvas { display:block; background:#061024; }
   <br>
   <button id="startBtn">Старт</button>
 </div>
+<div id="up" class="button-control">↑</div>
+<div id="left" class="button-control">←</div>
+<div id="right" class="button-control">→</div>
+<div id="boost" class="button-control">⚡</div>
 <canvas id="game"></canvas>
 <script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+const canvas=document.getElementById('game');
+const ctx=canvas.getContext('2d');
 let w=window.innerWidth,h=window.innerHeight;
 canvas.width=w; canvas.height=h;
 window.addEventListener('resize',()=>{w=window.innerWidth;h=window.innerHeight;canvas.width=w;canvas.height=h;});
@@ -65,21 +75,29 @@ class Spinner {
   }
 }
 
+class Bonus {
+  constructor(x,y,type){
+    this.x=x; this.y=y; this.radius=10; this.type=type;
+    this.color=type==='boost'?'#ffd166':'#06d6a0';
+    this.alive=true;
+  }
+  draw(ctx){
+    ctx.beginPath(); ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);
+    ctx.fillStyle=this.color; ctx.fill(); ctx.strokeStyle="#fff"; ctx.stroke();
+  }
+}
+
 let player=null;
 let bots=[];
+let bonuses=[];
 let pointer={x:0,y:0,down:false};
-let keys={w:0,a:0,s:0,d:0};
+let keys={up:0,left:0,right:0,boost:0};
 let leaderboard=[];
-
-window.addEventListener('keydown',e=>{if(e.key==='w')keys.w=1;if(e.key==='s')keys.s=1;if(e.key==='a')keys.a=1;if(e.key==='d')keys.d=1;});
-window.addEventListener('keyup',e=>{if(e.key==='w')keys.w=0;if(e.key==='s')keys.s=0;if(e.key==='a')keys.a=0;if(e.key==='d')keys.d=0;});
-canvas.addEventListener('pointerdown',e=>{pointer.down=true;pointer.x=e.clientX;pointer.y=e.clientY;});
-canvas.addEventListener('pointermove',e=>{pointer.x=e.clientX;pointer.y=e.clientY;});
-canvas.addEventListener('pointerup',()=>{pointer.down=false;});
 
 function spawnGame(name){
   player=new Spinner(name,w/2,h/2,true);
   bots=[]; for(let i=0;i<8;i++){bots.push(new Spinner('Bot'+(i+1),rand(50,w-50),rand(50,h-50)));}
+  bonuses=[]; for(let i=0;i<5;i++){bonuses.push(new Bonus(rand(50,w-50),rand(50,h-50),Math.random()<0.5?'boost':'points'));}
   leaderboard=[];
 }
 
@@ -101,12 +119,28 @@ function handleCollisions(arr){
   }
 }
 
+function handleBonuses(){
+  bonuses.forEach(b=>{
+    if(!b.alive) return;
+    const dx=player.x-b.x, dy=player.y-b.y, d=Math.hypot(dx,dy);
+    if(d<player.radius+b.radius){
+      if(b.type==='boost'){player.vx*=2; player.vy*=2;} 
+      else{player.mass+=20; player.radius=Math.sqrt(player.mass);}
+      b.alive=false;
+    }
+  });
+  if(bonuses.filter(b=>b.alive).length<3){
+    bonuses.push(new Bonus(rand(50,w-50),rand(50,h-50),Math.random()<0.5?'boost':'points'));
+  }
+}
+
 function update(dt){
   if(!player) return;
-  let ax=keys.d-keys.a, ay=keys.s-keys.w;
+  let ax=keys.right-keys.left, ay=keys.up;
   if(pointer.down){ax+=pointer.x-player.x>0?1:-1; ay+=pointer.y-player.y>0?1:-1;}
   let len=Math.hypot(ax,ay)||1;
-  player.vx+=ax/len*200*dt; player.vy+=ay/len*200*dt;
+  let speed=200*dt; if(keys.boost) speed*=2;
+  player.vx+=ax/len*speed; player.vy+=ay/len*speed;
   player.update(dt);
   bots.forEach(b=>{
     if(!b.alive) return;
@@ -115,6 +149,7 @@ function update(dt){
     b.vx+=(dx/d*80*dt); b.vy+=(dy/d*80*dt); b.update(dt);
   });
   handleCollisions([player,...bots.filter(b=>b.alive)]);
+  handleBonuses();
   document.getElementById('score').innerText='Очки: '+Math.round(player.mass);
   updateLeaderboard();
 }
@@ -122,6 +157,7 @@ function update(dt){
 function draw(){
   if(!player) return;
   ctx.clearRect(0,0,w,h);
+  bonuses.forEach(b=>{if(b.alive)b.draw(ctx);});
   [player,...bots.filter(b=>b.alive)].forEach(sp=>sp.draw(ctx));
 }
 
@@ -136,10 +172,15 @@ function loop(t){ let dt=(t-last)/1000; last=t; update(dt); draw(); requestAnima
 
 document.getElementById('startBtn').addEventListener('click',()=>{
   const nameInput=document.getElementById('nameInput').value.trim()||'Игрок';
-  spawnGame(nameInput);
-  document.getElementById('menu').style.display='none';
-  last=performance.now();
-  requestAnimationFrame(loop);
+  spawnGame(nameInput); document.getElementById('menu').style.display='none';
+  last=performance.now(); requestAnimationFrame(loop);
+});
+
+// мобильные кнопки
+['up','left','right','boost'].forEach(id=>{
+  const btn=document.getElementById(id);
+  btn.addEventListener('touchstart',()=>{keys[id]=1;});
+  btn.addEventListener('touchend',()=>{keys[id]=0;});
 });
 </script>
 </body>
