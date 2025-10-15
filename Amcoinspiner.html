@@ -1,0 +1,501 @@
+AMCOIN — full repo (server + client + Docker + deploy)
+
+Этот документ содержит готовую структуру репозитория, все ключевые файлы и инструкции для локального запуска и деплоя через Docker Compose. Я включил:
+
+Авторитетный Server: Node.js + Express + Socket.IO.
+
+Тики, физика, боты, коллизии.
+
+Простая регистрация (имя -> socket.id).
+
+Персистентный лидерборд в data/leaderboard.json.
+
+REST endpoint для лидерборда и статуса.
+
+Статический хостинг фронтенда (production build).
+
+
+Client: React (Create React App) с socket.io-client.
+
+Вход/регистрация, соединение к серверу.
+
+Рендер арены (canvas), управление WASD/стрелки/тач.
+
+Интерполяция состояния для сглаживания сетевых обновлений.
+
+Отправка вводов 20 раз в секунду.
+
+
+Docker: Dockerfile для сервера и клиента + docker-compose.yml для поднятия стека.
+
+README с пошаговыми инструкциями (локально и через Docker).
+
+
+
+---
+
+Структура репозитория
+
+amcoin/
+├─ server/
+│  ├─ package.json
+│  ├─ server.js
+│  ├─ Dockerfile
+│  ├─ data/
+│  │  └─ leaderboard.json
+│  └─ .env.example
+├─ client/
+│  ├─ package.json
+│  ├─ Dockerfile
+│  ├─ public/
+│  │  └─ index.html
+│  └─ src/
+│     ├─ index.js
+│     └─ App.jsx
+├─ docker-compose.yml
+└─ README.md
+
+
+---
+
+1) Server: server/package.json
+
+{
+  "name": "amcoin-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "socket.io": "^4.7.1"
+  }
+}
+
+
+---
+
+2) Server: server/server.js
+
+> Полный код сервера с лидербордом и возможностью хостить production-билд клиента.
+
+
+
+// server/server.js
+const express = require('express');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { Server } = require('socket.io');
+const cors = require('cors');
+
+require('dotenv').config && require('dotenv').config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
+
+const PORT = process.env.PORT || 3001;
+const ARENA = { w: 1600, h: 900 };
+const TICK_RATE = 20;
+const DT = 1 / TICK_RATE;
+const NUM_BOTS = parseInt(process.env.NUM_BOTS || '8', 10);
+
+// persistent data path
+const DATA_DIR = path.join(__dirname, 'data');
+const LB_FILE = path.join(DATA_DIR, 'leaderboard.json');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(LB_FILE)) fs.writeFileSync(LB_FILE, JSON.stringify([]));
+
+function loadLeaderboard(){ try{ return JSON.parse(fs.readFileSync(LB_FILE)); } catch(e){ return []; } }
+function saveLeaderboard(lb){ try{ fs.writeFileSync(LB_FILE, JSON.stringify(lb, null, 2)); } catch(e){ console.error('LB save err', e); } }
+
+let leaderboard = loadLeaderboard();
+
+// game state
+let players = {}; // id -> player
+
+function nowId(prefix='p'){ return `${prefix}_${Math.floor(Math.random()*1e9)}`; }
+function rand(a,b){ return a + Math.random()*(b-a); }
+function randomColor(){ const hues = ['#ff6b6b','#ffd166','#06d6a0','#4d96ff','#c792ea','#ff8fab']; return hues[Math.floor(Math.random()*hues.length)]; }
+
+function createSpinner(id, name, x, y, isPlayer){
+  const radius = 18 + Math.random()*12;
+  const mass = Math.round(radius*radius);
+  return { id, name, x, y, vx:0, vy:0, radius, mass, spin: Math.random()*Math.PI*2, spinSpeed:2+Math.random()*4, color: randomColor(), alive:true, isPlayer:!!isPlayer, input:{ax:0,ay:0,pointer:{x:0,y:0,down:false}}, targetTimer:Math.random()*2 };
+}
+
+// spawn initial bots
+for(let i=0;i<NUM_BOTS;i++){ const id=nowId('bot'); players[id]=createSpinner(id, `Bot${i+1}`, rand(100,ARENA.w-100), rand(100,ARENA.h-100), false); }
+
+// REST endpoints
+app.get('/api/leaderboard', (req,res)=>{ res.json(leaderboard); });
+app.post('/api/leaderboard', (req,res)=>{
+  const { name, score } = req.body;
+  if(!name || typeof score !== 'number') return res.status(400).json({ error:'Invalid' });
+  leaderboard.push({ name, score, date: new Date().toISOString() });
+  // keep top 50
+  leaderboard = leaderboard.sort((a,b)=>b.score-a.score).slice(0,50);
+  saveLeaderboard(leaderboard);
+  res.json({ ok:true });
+});
+
+// serve client build if exists
+const CLIENT_BUILD = path.join(__dirname, '..', 'client', 'build');
+if(fs.existsSync(CLIENT_BUILD)){
+  app.use(express.static(CLIENT_BUILD));
+  app.get('*', (req,res)=> res.sendFile(path.join(CLIENT_BUILD, 'index.html')));
+}
+
+// sockets
+io.on('connection', (socket)=>{
+  console.log('connect', socket.id);
+  socket.on('register', (name)=>{
+    const id = socket.id;
+    const spawnX = rand(200, ARENA.w-200);
+    const spawnY = rand(200, ARENA.h-200);
+    const p = createSpinner(id, name||`P${id.slice(0,4)}`, spawnX, spawnY, true);
+    players[id] = p;
+    socket.emit('registered', { id });
+    console.log('registered', id, name);
+  });
+  socket.on('input', (inp)=>{ if(players[socket.id]) players[socket.id].input = inp || {ax:0,ay:0,pointer:{x:0,y:0,down:false}}; });
+  socket.on('disconnect', ()=>{
+    const id = socket.id;
+    const p = players[id];
+    if(p){ p.isPlayer = false; p.name = `Bot_${id.slice(0,4)}`; p.input = {ax:0,ay:0,pointer:{x:0,y:0,down:false}}; console.log('player disconnected converted to bot', id); }
+  });
+});
+
+// physics tick
+setInterval(()=>{
+  const list = Object.values(players).filter(p=>p.alive);
+  // bots AI
+  list.forEach(p=>{ if(!p.isPlayer){ p.targetTimer -= DT; if(p.targetTimer<=0){ p.targetTimer = 0.6 + Math.random()*1.6; const others = list.filter(o=>o.id!==p.id); if(others.length){ const t = others[Math.floor(Math.random()*others.length)]; const dx=t.x-p.x, dy=t.y-p.y, d=Math.max(1,Math.hypot(dx,dy)); const spd=Math.max(40,180 - p.radius*2); p.vx=(dx/d)*spd*(0.7+Math.random()*0.8); p.vy=(dy/d)*spd*(0.7+Math.random()*0.8); } else { p.vx=(Math.random()-0.5)*120; p.vy=(Math.random()-0.5)*120; } } } });
+
+  // apply inputs for players
+  list.forEach(p=>{ if(p.isPlayer){ const inp=p.input||{ax:0,ay:0}; let ax=inp.ax||0, ay=inp.ay||0; if(inp.pointer && inp.pointer.down){ const dx=inp.pointer.x - p.x, dy=inp.pointer.y - p.y, d=Math.hypot(dx,dy)||1; ax += dx/d; ay += dy/d; } if(ax!==0||ay!==0){ const len=Math.hypot(ax,ay)||1; const nx=ax/len, ny=ay/len; const baseSpeed=Math.max(60,220 - p.radius*2); p.vx += nx * baseSpeed * DT * 2.6; p.vy += ny * baseSpeed * DT * 2.6; } p.vx *= 0.985; p.vy *= 0.985; } });
+
+  // integrate
+  list.forEach(p=>{ p.x += p.vx * DT; p.y += p.vy * DT; if(p.x < p.radius){ p.x = p.radius; p.vx *= -0.4; } if(p.y < p.radius){ p.y = p.radius; p.vy *= -0.4; } if(p.x > ARENA.w - p.radius){ p.x = ARENA.w - p.radius; p.vx *= -0.4; } if(p.y > ARENA.h - p.radius){ p.y = ARENA.h - p.radius; p.vy *= -0.4; } p.spin += p.spinSpeed * DT; });
+
+  // collisions
+  for(let i=0;i<list.length;i++){
+    for(let j=i+1;j<list.length;j++){
+      const a=list[i], b=list[j]; if(!a.alive||!b.alive) continue; const dx=b.x-a.x, dy=b.y-a.y, dist=Math.hypot(dx,dy); if(dist < a.radius + b.radius - 1){ const aw=a.mass*(1+(Math.random()-0.5)*0.08), bw=b.mass*(1+(Math.random()-0.5)*0.08); let winner = aw>=bw? a: b; let loser = winner===a? b: a; const transfer = Math.round(loser.mass * 0.85); winner.mass += transfer; winner.radius = Math.sqrt(winner.mass); winner.spinSpeed = Math.min(12, winner.spinSpeed + transfer*0.01); loser.mass -= transfer; if(loser.mass <= 24){ loser.alive = false; setTimeout(()=>{ const nid = nowId(loser.isPlayer?'p':'bot'); const re = createSpinner(nid, loser.name, rand(100,ARENA.w-100), rand(100,ARENA.h-100), loser.isPlayer); players[nid] = re; // if player died, register score
+      if(loser.isPlayer){ leaderboard.push({ name: loser.name, score: loser.mass, date: new Date().toISOString() }); leaderboard = leaderboard.sort((a,b)=>b.score-a.score).slice(0,50); saveLeaderboard(leaderboard); }
+    }, 1200); } else { loser.radius = Math.sqrt(loser.mass); } const overlap = (a.radius + b.radius) - dist; if(dist>0){ const nx=dx/dist, ny=dy/dist; a.x -= nx*overlap*0.5; a.y -= ny*overlap*0.5; b.x += nx*overlap*0.5; b.y += ny*overlap*0.5; } winner.vx += (Math.random()-0.5)*80; winner.vy += (Math.random()-0.5)*80; } }
+  }
+
+  // broadcast snapshot
+  const snapshot = Object.values(players).filter(p=>p.alive).map(p=>({ id:p.id, name:p.name, x:p.x, y:p.y, radius:p.radius, mass:p.mass, spin:p.spin, color:p.color, isPlayer:p.isPlayer }));
+  io.emit('state', { players: snapshot, arena: ARENA });
+
+}, 1000 / TICK_RATE);
+
+app.get('/', (req,res)=> res.send('AMCOIN Server'));
+server.listen(PORT, ()=> console.log('AMCOIN server listening', PORT));
+
+
+---
+
+3) Server Dockerfile server/Dockerfile
+
+FROM node:18-alpine
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production || npm install --only=production
+COPY . .
+ENV NODE_ENV=production
+EXPOSE 3001
+CMD ["node", "server.js"]
+
+(If you don't have package-lock.json, npm install will run.)
+
+
+---
+
+4) Client (Create React App) — important файлы
+
+client/package.json (только зависимости/snippets — Create React App создаст остальное):
+
+{
+  "name": "amcoin-client",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io-client": "^4.7.1",
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  }
+}
+
+client/public/index.html
+
+Just the standard CRA index; ensure it has a root div.
+
+client/src/index.js
+
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './index.css';
+const root = createRoot(document.getElementById('root'));
+root.render(<App />);
+
+client/src/App.jsx — клиент с интерполяцией и вводом
+
+import React, { useEffect, useRef, useState } from 'react';
+import { io } from 'socket.io-client';
+
+const SERVER_URL = process.env.REACT_APP_SERVER_URL || (window.location.origin.includes('3000') ? 'http://localhost:3001' : window.location.origin);
+
+export default function App(){
+  const [page, setPage] = useState('welcome');
+  const [name, setName] = useState(localStorage.getItem('amcoin_name')||'');
+  const [socket, setSocket] = useState(null);
+  const [meId, setMeId] = useState(null);
+  const [snapshot, setSnapshot] = useState({ players: [], arena: { w:1600, h:900 }, t: Date.now() });
+  const canvasRef = useRef(null);
+  const inputsRef = useRef({ ax:0, ay:0, pointer:{x:0,y:0,down:false} });
+  const lastServerTime = useRef(Date.now());
+  const interpStates = useRef([]);
+
+  useEffect(()=>{ return ()=>{ if(socket) socket.disconnect(); }; },[socket]);
+
+  function connectAndRegister(username){
+    const s = io(SERVER_URL, { transports:['websocket'] });
+    setSocket(s);
+    s.on('connect', ()=>{ s.emit('register', username); });
+    s.on('registered', ()=>{ setMeId(s.id); localStorage.setItem('amcoin_name', username); setPage('game'); });
+    s.on('state', (st)=>{ st.t = Date.now(); interpStates.current.push(st); if(interpStates.current.length>3) interpStates.current.shift(); setSnapshot(st); lastServerTime.current = Date.now(); });
+
+    // inputs sender
+    const iv = setInterval(()=>{ if(s && s.connected) s.emit('input', inputsRef.current); }, 50);
+    window.addEventListener('beforeunload', ()=>{ clearInterval(iv); if(s) s.disconnect(); });
+  }
+
+  return (
+    <div style={{background:'#041226', minHeight:'100vh', color:'#fff', fontFamily:'Inter, sans-serif', padding:24}}>
+      <div style={{maxWidth:1200, margin:'0 auto'}}>
+        {page==='welcome' ? (
+          <div style={{background:'rgba(255,255,255,0.04)', padding:24, borderRadius:12}}>
+            <h1 style={{fontSize:36}}>AMCOIN — Multiplayer</h1>
+            <p>Сервер: {SERVER_URL}</p>
+            <div style={{display:'flex', gap:8}}>
+              <input value={name} onChange={(e)=>setName(e.target.value)} placeholder='Имя' style={{padding:10,borderRadius:8}} />
+              <button onClick={()=>{ if(name.trim()) connectAndRegister(name.trim()); }}>Старт</button>
+              <button onClick={()=>setName(`Player${Math.floor(Math.random()*900+100)}`)}>Рандом</button>
+            </div>
+          </div>
+        ) : (
+          <GameCanvas canvasRef={canvasRef} snapshot={snapshot} interpStates={interpStates} meId={meId} inputsRef={inputsRef} socket={socket} onExit={()=>{ if(socket) socket.disconnect(); setPage('welcome'); }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GameCanvas({ canvasRef, snapshot, interpStates, meId, inputsRef, socket, onExit }){
+  const [score, setScore] = useState(0);
+  useEffect(()=>{ const me = snapshot.players.find(p=>p.id===meId); if(me) setScore(Math.round(me.mass)); },[snapshot,meId]);
+
+  // pointer
+  useEffect(()=>{
+    const canvas = canvasRef.current; if(!canvas) return;
+    const onPointerDown = (e)=>{ const rect=canvas.getBoundingClientRect(); inputsRef.current.pointer.down=true; inputsRef.current.pointer.x=(e.clientX-rect.left)*(snapshot.arena.w/rect.width); inputsRef.current.pointer.y=(e.clientY-rect.top)*(snapshot.arena.h/rect.height); };
+    const onPointerMove = (e)=>{ if(!inputsRef.current.pointer.down) return; const rect=canvas.getBoundingClientRect(); inputsRef.current.pointer.x=(e.clientX-rect.left)*(snapshot.arena.w/rect.width); inputsRef.current.pointer.y=(e.clientY-rect.top)*(snapshot.arena.h/rect.height); };
+    const onPointerUp = ()=>{ inputsRef.current.pointer.down=false; };
+    canvas.addEventListener('pointerdown', onPointerDown); window.addEventListener('pointermove', onPointerMove); window.addEventListener('pointerup', onPointerUp);
+    return ()=>{ canvas.removeEventListener('pointerdown', onPointerDown); window.removeEventListener('pointermove', onPointerMove); window.removeEventListener('pointerup', onPointerUp); };
+  },[canvasRef, snapshot]);
+
+  // keyboard
+  useEffect(()=>{
+    const onKeyDown = (e)=>{ const k=e.key.toLowerCase(); if(k==='w'||e.key==='ArrowUp') inputsRef.current.ay=-1; if(k==='s'||e.key==='ArrowDown') inputsRef.current.ay=1; if(k==='a'||e.key==='ArrowLeft') inputsRef.current.ax=-1; if(k==='d'||e.key==='ArrowRight') inputsRef.current.ax=1; };
+    const onKeyUp = (e)=>{ const k=e.key.toLowerCase(); if(k==='w'||e.key==='ArrowUp') inputsRef.current.ay=0; if(k==='s'||e.key==='ArrowDown') inputsRef.current.ay=0; if(k==='a'||e.key==='ArrowLeft') inputsRef.current.ax=0; if(k==='d'||e.key==='ArrowRight') inputsRef.current.ax=0; };
+    window.addEventListener('keydown', onKeyDown); window.addEventListener('keyup', onKeyUp);
+    return ()=>{ window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp); };
+  },[]);
+
+  // render with interpolation
+  useEffect(()=>{
+    let raf;
+    const render = ()=>{
+      const canvas = canvasRef.current; if(!canvas) return; const ctx = canvas.getContext('2d'); const rect = canvas.getBoundingClientRect(); canvas.width=rect.width; canvas.height=rect.height; const sx=rect.width/snapshot.arena.w, sy=rect.height/snapshot.arena.h;
+      ctx.fillStyle='#061024'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      drawGrid(ctx, rect.width, rect.height, sx, sy, snapshot.arena);
+
+      // interpolation: simple linear between last two snapshots
+      const frames = interpStates.current;
+      let playersToDraw = snapshot.players;
+      if(frames.length>=2){ const a=frames[frames.length-2], b=frames[frames.length-1]; const now=Date.now(); const dt=(now - b.t); const alpha = Math.min(1, Math.max(0, dt/100)); // not perfect but smooth
+        playersToDraw = b.players.map(pb=>{ const pa = a.players.find(x=>x.id===pb.id) || pb; return {
+          ...pb,
+          x: pa.x + (pb.x - pa.x)*alpha,
+          y: pa.y + (pb.y - pa.y)*alpha,
+          spin: pa.spin + (pb.spin - pa.spin)*alpha,
+        }; }); }
+
+      playersToDraw.slice().sort((a,b)=>b.radius-a.radius).forEach(p=>{
+        const cx = p.x * sx; const cy = p.y * sy; const r = Math.max(6, p.radius * ((sx+sy)/2));
+        ctx.beginPath(); ctx.ellipse(cx+3,cy+3,r+6,r+3,0,0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fill();
+        ctx.save(); ctx.translate(cx,cy); ctx.rotate(p.spin||0); ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fillStyle = p.color||'#4d96ff'; ctx.fill(); ctx.lineWidth = Math.max(2,r*0.15); ctx.strokeStyle='rgba(255,255,255,0.9)'; for(let i=0;i<3;i++){ ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(r*1.6,0); ctx.stroke(); ctx.rotate(Math.PI*2/3); } ctx.beginPath(); ctx.arc(0,0,Math.max(3,r*0.25),0,Math.PI*2); ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.fill(); ctx.restore();
+        ctx.font = `${Math.max(10, Math.round(r*0.5))}px Inter, sans-serif`; ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fillText(p.name, cx, cy - r - 8); ctx.fillStyle='rgba(255,255,255,0.7)'; ctx.fillText(Math.round(p.mass), cx, cy + r + 14);
+        if(p.id === meId){ ctx.beginPath(); ctx.ellipse(cx,cy,r+6,r+6,0,0,Math.PI*2); ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=3; ctx.stroke(); }
+      });
+
+      raf = requestAnimationFrame(render);
+    };
+    raf = requestAnimationFrame(render);
+    return ()=> cancelAnimationFrame(raf);
+  },[snapshot, interpStates, meId]);
+
+  return (
+    <div style={{display:'flex', gap:12}}>
+      <div style={{width:260}}>
+        <div style={{marginBottom:8}}><button onClick={onExit}>Выйти</button></div>
+        <div style={{background:'rgba(255,255,255,0.04)', padding:12, borderRadius:8}}>
+          <div style={{fontWeight:700}}>AMCOIN</div>
+          <div style={{fontSize:12}}>Очки: {score}</div>
+          <hr style={{margin:'8px 0', borderColor:'rgba(255,255,255,0.06)'}} />
+          <div style={{fontSize:13}}>Топ игроки:</div>
+          <div style={{marginTop:6}}>
+            {(snapshot.players||[]).slice().sort((a,b)=>b.mass-a.mass).slice(0,8).map((p,idx)=> (
+              <div key={p.id} style={{display:'flex',justifyContent:'space-between'}}>{idx+1}. {p.name}<span>{Math.round(p.mass)}</span></div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{flex:1, position:'relative'}}>
+        <canvas ref={canvasRef} style={{width:'100%', height:'75vh', display:'block'}}></canvas>
+        <div style={{position:'absolute', left:12, top:12, background:'rgba(255,255,255,0.06)', padding:'6px 10px', borderRadius:8}}>AMCOIN — очки: <b>{score}</b></div>
+      </div>
+    </div>
+  );
+}
+
+function drawGrid(ctx,w,h,sx,sy,arena){ ctx.save(); ctx.globalAlpha = 0.06; ctx.strokeStyle = '#99a'; ctx.lineWidth=1; const step=80; for(let gx=0; gx<arena.w; gx+=step){ const x=gx*sx; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); } for(let gy=0; gy<arena.h; gy+=step){ const y=gy*sy; ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); } ctx.restore(); }
+
+
+---
+
+5) Client Dockerfile client/Dockerfile
+
+FROM node:18-alpine as builder
+WORKDIR /app
+COPY package.json package-lock.json* ./
+RUN npm ci || npm install
+COPY . .
+RUN npm run build
+
+FROM nginx:stable-alpine
+COPY --from=builder /app/build /usr/share/nginx/html
+EXPOSE 80
+CMD ["/usr/sbin/nginx","-g","daemon off;"]
+
+
+---
+
+6) docker-compose.yml (root)
+
+version: '3.8'
+services:
+  server:
+    build: ./server
+    ports:
+      - '3001:3001'
+    environment:
+      - NODE_ENV=production
+      - NUM_BOTS=8
+    volumes:
+      - ./server/data:/app/data
+  client:
+    build: ./client
+    ports:
+      - '3000:80'
+    environment:
+      - REACT_APP_SERVER_URL=http://localhost:3001
+
+> После docker-compose up --build клиент будет доступен на http://localhost:3000, сервер на http://localhost:3001.
+
+
+
+
+---
+
+7) README.md (короткая инструкция)
+
+# AMCOIN
+
+Multiplayer spinner arena (AMCOIN) — server + client + docker.
+
+## Локальная разработка (без Docker)
+
+1. Сервер
+
+```bash
+cd server
+npm install
+node server.js
+
+2. Клиент
+
+
+
+npx create-react-app client  # если ещё не создан
+# замените client/src/App.jsx и другие файлы на те, что в этом репозитории
+cd client
+npm install
+npm start
+
+3. Откройте в браузере http://localhost:3000 (CRA) и http://localhost:3001 (сервер REST).
+
+
+
+Запуск через Docker Compose
+
+docker-compose up --build
+
+Клиент: http://localhost:3000
+
+Сервер API / websockets: http://localhost:3001
+
+
+Персистентный лидерборд
+
+Сервер сохраняет лидерборд в server/data/leaderboard.json.
+
+Что можно улучшить дальше
+
+Авторизация и аккаунты (JWT / база данных).
+
+Защита от читерства (валидация скорости, server-side anti-cheat).
+
+Matchmaking / комнаты + sharding серверов.
+
+Больше апгрейдов, магазинов и UI.
+
+
+---
+
+Я добавил всё необходимое: серверный код, клиентский код с интерполяцией, Docker конфигурацию и инструкции.
+
+Если хочешь — могу прямо сейчас:
+- Сгенерировать архив репозитория (zip) и поместить в Canvas (или вывести файлы отдельно),
+- Или шаг за шагом показать команды для развёртывания на VPS (systemd, nginx reverse proxy, TLS через Let's Encrypt).
+
+Что предпочитаешь — архив репозитория или инструкции развертывания на сервере с example nginx + certbot?"
+
