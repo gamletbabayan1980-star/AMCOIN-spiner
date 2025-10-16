@@ -202,7 +202,6 @@
 </footer>
 
 <script>
-  // Локализация
   const translations = {
     ru: {
       welcome: 'Добро пожаловать в AMCOIN Clicker!',
@@ -233,16 +232,14 @@
     }
   };
 
-  // Переменные
   let lang = 'ru';
   let count = 0;
   const energyMax = 100;
   let energy = energyMax;
-  const energyConsumption = 15; // сколько энергии уходит за клик
-  const energyRecoveryRate = 10; // энергии в секунду восстанавливается
+  const energyConsumption = 15;
+  const energyRecoveryRate = 10;
   let userAddress = null;
 
-  // Элементы DOM
   const langSelect = document.getElementById('langSelect');
   const welcomeText = document.getElementById('welcomeText');
   const clickBtn = document.getElementById('clickBtn');
@@ -252,7 +249,6 @@
   const energyBar = document.getElementById('energyBar');
   const energyText = document.getElementById('energyText');
 
-  // Обновить интерфейс на выбранном языке
   function updateTexts() {
     welcomeText.textContent = translations[lang].welcome;
     clickBtn.textContent = translations[lang].click;
@@ -263,18 +259,15 @@
     energyText.textContent = translations[lang].energy + Math.floor(energy) + ' / ' + energyMax;
   }
 
-  // Изменить язык
   langSelect.addEventListener('change', e => {
     lang = e.target.value;
     updateTexts();
   });
 
-  // Обновить счётчик
   function updateCounter() {
     counterElem.textContent = count;
   }
 
-  // Обновить шкалу энергии
   function updateEnergyBar() {
     let percent = (energy / energyMax) * 100;
     energyBar.style.width = percent + '%';
@@ -289,7 +282,6 @@
     energyText.textContent = translations[lang].energy + Math.floor(energy) + ' / ' + energyMax;
   }
 
-  // Клик по кнопке
   clickBtn.addEventListener('click', () => {
     if (energy >= energyConsumption) {
       count++;
@@ -297,13 +289,11 @@
       updateCounter();
       updateEnergyBar();
     } else {
-      // Если энергии мало, можно визуально сигнализировать
       clickBtn.style.animation = 'shake 0.3s';
       setTimeout(() => clickBtn.style.animation = '', 300);
     }
   });
 
-  // Анимация "shake" для кнопки при нехватке энергии
   const styleSheet = document.createElement("style");
   styleSheet.innerText = `
     @keyframes shake {
@@ -316,7 +306,6 @@
   `;
   document.head.appendChild(styleSheet);
 
-  // Автоматическое восстановление энергии (каждую 1/5 секунды)
   setInterval(() => {
     if (energy < energyMax) {
       energy += energyRecoveryRate / 5;
@@ -325,22 +314,38 @@
     }
   }, 200);
 
-  // Кнопка входа (демо, без настоящей авторизации)
-  loginBtn.addEventListener('click', async () => {
-    // Здесь можно вставить логику подключения к TON кошельку
-    // Для демо просто имитируем логин с рандомным адресом
-    userAddress = 'EQ...DemoAddress12345';
-    updateTexts();
+  async function loginTonkeeper() {
+    try {
+      if (window.ton && window.ton.isTonkeeper) {
+        const response = await window.ton.send('ton_requestAccounts');
+        if (response && response.length > 0) {
+          userAddress = response[0];
+          updateTexts();
+          // Здесь можно запросить баланс с вашего API/блокчейна и обновить balanceElem
+          balanceElem.textContent = translations[lang].balance + 'загружается...';
 
-    // TODO: запросить баланс AMCOIN с блокчейна и обновить balanceElem
-    balanceElem.textContent = translations[lang].balance + '12345.6789 AMCOIN';
-  });
+          // Пример: имитация запроса баланса (замени на свой API)
+          setTimeout(() => {
+            balanceElem.textContent = translations[lang].balance + '12345.6789 AMCOIN';
+          }, 1000);
 
-  // Инициализация интерфейса
+        } else {
+          alert(translations[lang].loginError);
+        }
+      } else {
+        alert('Tonkeeper Wallet not found');
+      }
+    } catch (e) {
+      alert(translations[lang].loginError);
+      console.error('Login error:', e);
+    }
+  }
+
+  loginBtn.addEventListener('click', loginTonkeeper);
+
   updateTexts();
   updateCounter();
   updateEnergyBar();
-
 </script>
 
 </body>
