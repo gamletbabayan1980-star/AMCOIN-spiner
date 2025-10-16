@@ -1,352 +1,292 @@
 <!DOCTYPE html>
-<html lang="ru" >
+<html lang="ru">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AMCOIN Clicker</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
-    :root {
-      --color-bg: #121212;
-      --color-primary: #00bfa5;
-      --color-primary-dark: #008e75;
-      --color-text: #eee;
-      --color-accent: #ffb300;
-      --color-energy-full: #4caf50;
-      --color-energy-low: #f44336;
-      --transition: 0.3s ease;
-    }
-    * {
-      box-sizing: border-box;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
     body {
       margin: 0;
-      font-family: 'Poppins', sans-serif;
-      background: var(--color-bg);
-      color: var(--color-text);
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #4a90e2, #50e3c2);
+      color: #fff;
       display: flex;
       flex-direction: column;
-      align-items: center;
       min-height: 100vh;
+      align-items: center;
+      justify-content: flex-start;
       padding: 20px;
       user-select: none;
     }
-    #logo {
-      width: 140px;
-      margin-bottom: 20px;
-      filter: drop-shadow(0 0 6px var(--color-primary));
-    }
     header {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      width: 100%;
-      max-width: 420px;
       margin-bottom: 20px;
-    }
-    #langSelect {
-      background: var(--color-primary-dark);
-      border: none;
-      color: var(--color-text);
-      padding: 8px 12px;
-      font-size: 1rem;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background var(--transition);
-    }
-    #langSelect:hover {
-      background: var(--color-primary);
-    }
-    main {
       text-align: center;
-      max-width: 420px;
-      width: 100%;
-      background: #1e1e1e;
-      border-radius: 12px;
-      padding: 25px 20px 40px;
-      box-shadow: 0 0 20px rgba(0, 191, 165, 0.3);
     }
-    #welcomeText {
-      font-weight: 600;
-      font-size: 1.3rem;
-      margin-bottom: 15px;
-    }
-    #counter {
-      font-size: 4rem;
+    h1 {
+      margin: 0;
       font-weight: 700;
-      color: var(--color-accent);
-      margin: 15px 0 10px;
-      letter-spacing: 2px;
-      user-select: text;
+      font-size: 2.5rem;
+      letter-spacing: 1px;
     }
-    #clickBtn {
-      width: 100%;
-      font-size: 1.6rem;
-      padding: 15px 0;
-      background: var(--color-primary);
+    .lang-select {
+      margin-top: 10px;
+      background: rgba(255 255 255 / 0.15);
+      border-radius: 8px;
+      padding: 5px 10px;
+      color: #fff;
+      font-weight: 500;
       border: none;
-      border-radius: 10px;
-      color: var(--color-text);
-      font-weight: 600;
       cursor: pointer;
-      box-shadow: 0 6px var(--color-primary-dark);
-      transition: all var(--transition);
-      user-select: none;
     }
-    #clickBtn:active {
-      box-shadow: none;
-      transform: translateY(4px);
-    }
-    #loginBtn {
-      margin-top: 20px;
+    .container {
+      background: rgba(255 255 255 / 0.1);
+      border-radius: 16px;
+      padding: 30px 40px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      max-width: 400px;
       width: 100%;
-      font-size: 1.1rem;
-      padding: 12px 0;
-      background: transparent;
-      border: 2px solid var(--color-primary);
-      color: var(--color-primary);
-      border-radius: 10px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background var(--transition), color var(--transition);
-      user-select: none;
+      text-align: center;
     }
-    #loginBtn:hover {
-      background: var(--color-primary);
-      color: var(--color-text);
+    button {
+      background: #ffffff22;
+      border: 2px solid #ffffff55;
+      color: #fff;
+      padding: 12px 25px;
+      font-size: 1.1rem;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+      margin-top: 15px;
+      width: 100%;
+    }
+    button:hover {
+      background: #fff;
+      color: #4a90e2;
+      border-color: #4a90e2;
+      font-weight: 700;
+    }
+    #address {
+      margin-top: 15px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      background: rgba(255 255 255 / 0.15);
+      padding: 10px 15px;
+      border-radius: 8px;
+      word-break: break-word;
     }
     #balance {
       margin-top: 15px;
-      font-size: 1rem;
-      color: var(--color-primary);
-      user-select: text;
-      min-height: 22px;
+      font-size: 1.3rem;
+      font-weight: 700;
     }
-    #energyContainer {
-      margin: 25px 0 15px;
-      background: #333;
+    #energy-container {
+      margin-top: 30px;
+      background: rgba(255 255 255 / 0.15);
       border-radius: 30px;
-      height: 22px;
+      height: 25px;
       width: 100%;
-      max-width: 400px;
       overflow: hidden;
-      box-shadow: inset 0 0 6px #0008;
-      user-select: none;
+      box-shadow: inset 0 0 5px rgba(0,0,0,0.2);
+      position: relative;
     }
-    #energyBar {
+    #energy-bar {
+      background: #50e3c2;
       height: 100%;
-      background: var(--color-energy-full);
       width: 100%;
-      max-width: 100%;
-      transition: width 0.3s ease, background-color 0.3s ease;
       border-radius: 30px 0 0 30px;
+      transition: width 0.3s ease;
     }
-    #energyText {
-      margin-top: -22px;
-      font-size: 0.9rem;
-      color: var(--color-text);
+    #click-button {
+      margin-top: 30px;
+      background: #50e3c2;
+      border: none;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    #notification {
+      margin-top: 20px;
+      min-height: 24px;
       font-weight: 600;
-      user-select: none;
+      color: #ffcc00;
+      min-height: 28px;
     }
     footer {
       margin-top: auto;
       font-size: 0.8rem;
-      color: #555;
-      user-select: none;
-      max-width: 420px;
-      width: 100%;
-      text-align: center;
-    }
-    @media (max-width: 480px) {
-      #counter {
-        font-size: 3rem;
-      }
-      #clickBtn {
-        font-size: 1.3rem;
-      }
-      main {
-        padding: 20px 15px 30px;
-      }
+      color: #eee;
+      padding: 15px 0;
     }
   </style>
 </head>
 <body>
+  <header>
+    <h1 id="title">AMCOIN Clicker</h1>
+    <select id="lang-select" class="lang-select" aria-label="Выбор языка">
+      <option value="ru">Русский</option>
+      <option value="en">English</option>
+      <option value="hy">Հայերեն</option>
+    </select>
+  </header>
+  <div class="container">
+    <button id="connect-button">Подключить TON-кошелек</button>
+    <div id="address"></div>
+    <div id="balance"></div>
 
-<header>
-  <select id="langSelect" aria-label="Select language">
-    <option value="ru">Русский</option>
-    <option value="en">English</option>
-    <option value="hy">Հայերեն</option>
-  </select>
-</header>
-
-<main>
-  <img id="logo" src="https://i.postimg.cc/jjGMZTC1/generated-image-2ce8a2bb716611ef.png" alt="AMCOIN Logo" />
-  <div id="welcomeText"></div>
-  <div id="counter">0</div>
-
-  <div id="energyContainer" aria-label="Energy bar">
-    <div id="energyBar"></div>
+    <div id="energy-container" aria-label="Шкала энергии">
+      <div id="energy-bar"></div>
+    </div>
+    <button id="click-button" disabled>Кликать</button>
+    <div id="notification" role="alert" aria-live="polite"></div>
   </div>
-  <div id="energyText"></div>
 
-  <button id="clickBtn" aria-label="Click button"></button>
+  <footer>
+    © 2025 AMCOIN Project
+  </footer>
 
-  <button id="loginBtn" aria-label="Login with TON wallet"></button>
-
-  <div id="balance" aria-live="polite"></div>
-</main>
-
-<footer>
-  AMCOIN Clicker — Demo game &copy; 2025
-</footer>
-
-<script>
-  const translations = {
-    ru: {
-      welcome: 'Добро пожаловать в AMCOIN Clicker!',
-      click: 'Кликни меня!',
-      login: 'Войти через TON-кошелек',
-      balance: 'Баланс AMCOIN: ',
-      loggedIn: 'Вы вошли как: ',
-      loginError: 'Ошибка авторизации. Попробуйте снова.',
-      energy: 'Энергия: '
-    },
-    en: {
-      welcome: 'Welcome to AMCOIN Clicker!',
-      click: 'Click me!',
-      login: 'Login with TON Wallet',
-      balance: 'AMCOIN Balance: ',
-      loggedIn: 'Logged in as: ',
-      loginError: 'Authorization error. Try again.',
-      energy: 'Energy: '
-    },
-    hy: {
-      welcome: 'Բարի գալուստ AMCOIN կլիքերին!',
-      click: 'Սեղմիր ինձ!',
-      login: 'Մուտք TON դրամապանակով',
-      balance: 'AMCOIN հաշվեկշիռը՝ ',
-      loggedIn: 'Մուտք գործեցիք՝ ',
-      loginError: 'Մուտքի սխալ։ Փորձեք նորից։',
-      energy: 'Էներգիա՝ '
-    }
-  };
-
-  let lang = 'ru';
-  let count = 0;
-  const energyMax = 100;
-  let energy = energyMax;
-  const energyConsumption = 15;
-  const energyRecoveryRate = 10;
-  let userAddress = null;
-
-  const langSelect = document.getElementById('langSelect');
-  const welcomeText = document.getElementById('welcomeText');
-  const clickBtn = document.getElementById('clickBtn');
-  const loginBtn = document.getElementById('loginBtn');
-  const counterElem = document.getElementById('counter');
-  const balanceElem = document.getElementById('balance');
-  const energyBar = document.getElementById('energyBar');
-  const energyText = document.getElementById('energyText');
-
-  function updateTexts() {
-    welcomeText.textContent = translations[lang].welcome;
-    clickBtn.textContent = translations[lang].click;
-    loginBtn.textContent = userAddress
-      ? translations[lang].loggedIn + userAddress
-      : translations[lang].login;
-    balanceElem.textContent = userAddress ? translations[lang].balance + '—' : '';
-    energyText.textContent = translations[lang].energy + Math.floor(energy) + ' / ' + energyMax;
-  }
-
-  langSelect.addEventListener('change', e => {
-    lang = e.target.value;
-    updateTexts();
-  });
-
-  function updateCounter() {
-    counterElem.textContent = count;
-  }
-
-  function updateEnergyBar() {
-    let percent = (energy / energyMax) * 100;
-    energyBar.style.width = percent + '%';
-
-    if (percent > 50) {
-      energyBar.style.backgroundColor = 'var(--color-energy-full)';
-    } else if (percent > 20) {
-      energyBar.style.backgroundColor = '#ffc107';
-    } else {
-      energyBar.style.backgroundColor = 'var(--color-energy-low)';
-    }
-    energyText.textContent = translations[lang].energy + Math.floor(energy) + ' / ' + energyMax;
-  }
-
-  clickBtn.addEventListener('click', () => {
-    if (energy >= energyConsumption) {
-      count++;
-      energy -= energyConsumption;
-      updateCounter();
-      updateEnergyBar();
-    } else {
-      clickBtn.style.animation = 'shake 0.3s';
-      setTimeout(() => clickBtn.style.animation = '', 300);
-    }
-  });
-
-  const styleSheet = document.createElement("style");
-  styleSheet.innerText = `
-    @keyframes shake {
-      0% { transform: translateX(0); }
-      25% { transform: translateX(-5px); }
-      50% { transform: translateX(5px); }
-      75% { transform: translateX(-5px); }
-      100% { transform: translateX(0); }
-    }
-  `;
-  document.head.appendChild(styleSheet);
-
-  setInterval(() => {
-    if (energy < energyMax) {
-      energy += energyRecoveryRate / 5;
-      if (energy > energyMax) energy = energyMax;
-      updateEnergyBar();
-    }
-  }, 200);
-
-  async function loginTonkeeper() {
-    try {
-      if (window.ton && window.ton.isTonkeeper) {
-        const response = await window.ton.send('ton_requestAccounts');
-        if (response && response.length > 0) {
-          userAddress = response[0];
-          updateTexts();
-          // Здесь можно запросить баланс с вашего API/блокчейна и обновить balanceElem
-          balanceElem.textContent = translations[lang].balance + 'загружается...';
-
-          // Пример: имитация запроса баланса (замени на свой API)
-          setTimeout(() => {
-            balanceElem.textContent = translations[lang].balance + '12345.6789 AMCOIN';
-          }, 1000);
-
-        } else {
-          alert(translations[lang].loginError);
-        }
-      } else {
-        alert('Tonkeeper Wallet not found');
+  <script>
+    // Переводы
+    const translations = {
+      ru: {
+        title: 'AMCOIN Clicker',
+        connect: 'Подключить TON-кошелек',
+        connected: 'Подключено: ',
+        balance: 'Баланс: ',
+        loginError: 'Ошибка входа или отказ пользователя',
+        clickButton: 'Кликать',
+        energyEmpty: 'Энергия истощена, ждите восстановления...',
+        energyReady: 'Энергия восстановлена, можно кликать!',
+        notTonkeeper: 'Tonkeeper Wallet не найден. Откройте сайт через Tonkeeper браузер.',
+      },
+      en: {
+        title: 'AMCOIN Clicker',
+        connect: 'Connect TON Wallet',
+        connected: 'Connected: ',
+        balance: 'Balance: ',
+        loginError: 'Login error or user denied',
+        clickButton: 'Click me',
+        energyEmpty: 'Energy depleted, please wait...',
+        energyReady: 'Energy restored, you can click!',
+        notTonkeeper: 'Tonkeeper Wallet not found. Open in Tonkeeper browser.',
+      },
+      hy: {
+        title: 'AMCOIN Clicker',
+        connect: 'Կապվել TON դրամապանակի հետ',
+        connected: 'Կապված է՝ ',
+        balance: 'Բալանս՝ ',
+        loginError: 'Մուտքի սխալ կամ օգտատիրոջ մերժում',
+        clickButton: 'Սեղմել',
+        energyEmpty: 'Ուժը սպառված է, խնդրում ենք սպասել...',
+        energyReady: 'Ուժը վերականգնվել է, կարող եք սեղմել:',
+        notTonkeeper: 'Tonkeeper դրամապանակը չի գտնվել: Բացեք Tonkeeper դիտարկիչում:',
       }
-    } catch (e) {
-      alert(translations[lang].loginError);
-      console.error('Login error:', e);
+    };
+
+    // Элементы
+    const langSelect = document.getElementById('lang-select');
+    const connectBtn = document.getElementById('connect-button');
+    const addressElem = document.getElementById('address');
+    const balanceElem = document.getElementById('balance');
+    const clickBtn = document.getElementById('click-button');
+    const energyBar = document.getElementById('energy-bar');
+    const notification = document.getElementById('notification');
+    const titleElem = document.getElementById('title');
+
+    let lang = 'ru';
+    let userAddress = null;
+    let balance = 0;
+    let maxEnergy = 10;
+    let energy = maxEnergy;
+    let energyRecoveryInterval = null;
+
+    // Обновить тексты интерфейса на выбранном языке
+    function updateTexts() {
+      titleElem.textContent = translations[lang].title;
+      connectBtn.textContent = userAddress ? translations[lang].connected + userAddress : translations[lang].connect;
+      balanceElem.textContent = userAddress ? translations[lang].balance + (balance.toFixed(4) + ' AMCOIN') : '';
+      clickBtn.textContent = translations[lang].clickButton;
+      notification.textContent = '';
     }
-  }
 
-  loginBtn.addEventListener('click', loginTonkeeper);
+    // Обновить шкалу энергии
+    function updateEnergyBar() {
+      const percent = (energy / maxEnergy) * 100;
+      energyBar.style.width = percent + '%';
+      if (energy === 0) {
+        notification.textContent = translations[lang].energyEmpty;
+        clickBtn.disabled = true;
+      } else {
+        notification.textContent = translations[lang].energyReady;
+        clickBtn.disabled = false;
+      }
+    }
 
-  updateTexts();
-  updateCounter();
-  updateEnergyBar();
-</script>
+    // Восстановление энергии по 1 единице каждые 3 секунды
+    function startEnergyRecovery() {
+      if (energyRecoveryInterval) return; // уже запущено
+      energyRecoveryInterval = setInterval(() => {
+        if (energy < maxEnergy) {
+          energy++;
+          updateEnergyBar();
+        } else {
+          clearInterval(energyRecoveryInterval);
+          energyRecoveryInterval = null;
+        }
+      }, 3000);
+    }
 
+    // Функция входа через Tonkeeper
+    async function loginTonkeeper() {
+      try {
+        if (window.ton && window.ton.isTonkeeper) {
+          console.log('Tonkeeper detected');
+          const accounts = await window.ton.send('ton_requestAccounts');
+          console.log('Accounts:', accounts);
+          if (accounts.length > 0) {
+            userAddress = accounts[0];
+            balance = 12345.6789; // Пример баланса, потом можно заменить API вызовом для реального баланса
+            updateTexts();
+            updateEnergyBar();
+            clickBtn.disabled = false;
+            notification.textContent = '';
+            startEnergyRecovery();
+          } else {
+            alert(translations[lang].loginError);
+          }
+        } else {
+          alert(translations[lang].notTonkeeper);
+        }
+      } catch (e) {
+        alert(translations[lang].loginError + ': ' + e.message);
+        console.error(e);
+      }
+    }
+
+    // Обработка клика
+    function handleClick() {
+      if (energy > 0) {
+        energy--;
+        balance += 0.1; // При каждом клике добавляем монеты (пример)
+        updateTexts();
+        updateEnergyBar();
+        startEnergyRecovery();
+      }
+    }
+
+    // Смена языка
+    langSelect.addEventListener('change', () => {
+      lang = langSelect.value;
+      updateTexts();
+      updateEnergyBar();
+    });
+
+    // Кнопки
+    connectBtn.addEventListener('click', loginTonkeeper);
+    clickBtn.addEventListener('click', handleClick);
+
+    // Инициализация интерфейса
+    updateTexts();
+    updateEnergyBar();
+  </script>
 </body>
 </html>
