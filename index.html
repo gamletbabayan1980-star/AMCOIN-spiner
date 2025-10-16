@@ -38,7 +38,7 @@
     }
     header {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
       width: 100%;
       max-width: 420px;
@@ -236,10 +236,10 @@
   // Переменные
   let lang = 'ru';
   let count = 0;
-  let energyMax = 100;
+  const energyMax = 100;
   let energy = energyMax;
-  let energyConsumption = 15; // сколько энергии уходит за клик
-  let energyRecoveryRate = 10; // энергии в секунду восстанавливается
+  const energyConsumption = 15; // сколько энергии уходит за клик
+  const energyRecoveryRate = 10; // энергии в секунду восстанавливается
   let userAddress = null;
 
   // Элементы DOM
@@ -269,7 +269,7 @@
     updateTexts();
   });
 
-  // Обновить счётчик и интерфейс
+  // Обновить счётчик
   function updateCounter() {
     counterElem.textContent = count;
   }
@@ -279,11 +279,10 @@
     let percent = (energy / energyMax) * 100;
     energyBar.style.width = percent + '%';
 
-    // Меняем цвет шкалы в зависимости от уровня энергии
     if (percent > 50) {
       energyBar.style.backgroundColor = 'var(--color-energy-full)';
     } else if (percent > 20) {
-      energyBar.style.backgroundColor = '#ffc107'; // желтый
+      energyBar.style.backgroundColor = '#ffc107';
     } else {
       energyBar.style.backgroundColor = 'var(--color-energy-low)';
     }
@@ -294,4 +293,55 @@
   clickBtn.addEventListener('click', () => {
     if (energy >= energyConsumption) {
       count++;
-      energy
+      energy -= energyConsumption;
+      updateCounter();
+      updateEnergyBar();
+    } else {
+      // Если энергии мало, можно визуально сигнализировать
+      clickBtn.style.animation = 'shake 0.3s';
+      setTimeout(() => clickBtn.style.animation = '', 300);
+    }
+  });
+
+  // Анимация "shake" для кнопки при нехватке энергии
+  const styleSheet = document.createElement("style");
+  styleSheet.innerText = `
+    @keyframes shake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      50% { transform: translateX(5px); }
+      75% { transform: translateX(-5px); }
+      100% { transform: translateX(0); }
+    }
+  `;
+  document.head.appendChild(styleSheet);
+
+  // Автоматическое восстановление энергии (каждую 1/5 секунды)
+  setInterval(() => {
+    if (energy < energyMax) {
+      energy += energyRecoveryRate / 5;
+      if (energy > energyMax) energy = energyMax;
+      updateEnergyBar();
+    }
+  }, 200);
+
+  // Кнопка входа (демо, без настоящей авторизации)
+  loginBtn.addEventListener('click', async () => {
+    // Здесь можно вставить логику подключения к TON кошельку
+    // Для демо просто имитируем логин с рандомным адресом
+    userAddress = 'EQ...DemoAddress12345';
+    updateTexts();
+
+    // TODO: запросить баланс AMCOIN с блокчейна и обновить balanceElem
+    balanceElem.textContent = translations[lang].balance + '12345.6789 AMCOIN';
+  });
+
+  // Инициализация интерфейса
+  updateTexts();
+  updateCounter();
+  updateEnergyBar();
+
+</script>
+
+</body>
+</html>
