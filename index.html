@@ -1,192 +1,297 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" >
 <head>
-<meta charset="UTF-8">
-<title>AMCOIN Spinner</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-body { margin:0; overflow:hidden; background:#041226; color:#fff; font-family:sans-serif; touch-action: none; }
-canvas { display:block; background:#061024; }
-#ui { position:absolute; top:10px; left:10px; z-index:10; }
-#menu { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.6); padding:20px; border-radius:12px; text-align:center; }
-#menu input { padding:6px 10px; border-radius:6px; border:none; margin-bottom:10px; width:120px; text-align:center;}
-#menu button { padding:6px 12px; border-radius:6px; border:none; cursor:pointer; background:#4d96ff; color:#fff; font-weight:bold; }
-</style>
-</head>
-<body>
-<div id="ui">
-  <div id="score">Очки: 0</div>
-  <div id="leaderboard"><b>Топ:</b></div>
-</div>
-<div id="menu">
-  <div>Введите имя:</div>
-  <input id="nameInput" type="text" placeholder="Игрок">
-  <br>
-  <button id="startBtn">Старт</button>
-</div>
-<canvas id="game"></canvas>
-<script>
-const canvas=document.getElementById('game');
-const ctx=canvas.getContext('2d');
-let w=window.innerWidth,h=window.innerHeight;
-canvas.width=w; canvas.height=h;
-window.addEventListener('resize',()=>{w=window.innerWidth;h=window.innerHeight;canvas.width=w;canvas.height=h;});
-
-function rand(a,b){return a+Math.random()*(b-a);}
-function randomColor(){const c=['#ff6b6b','#ffd166','#06d6a0','#4d96ff','#c792ea','#ff8fab'];return c[Math.floor(Math.random()*c.length)];}
-
-class Spinner {
-  constructor(name,x,y,isPlayer=false){
-    this.name=name; this.x=x; this.y=y;
-    this.vx=0; this.vy=0;
-    this.radius=30;  
-    this.mass=this.radius*this.radius;
-    this.color=randomColor();
-    this.isPlayer=isPlayer;
-    this.angle=Math.random()*Math.PI*2; 
-    this.spinSpeed=15; 
-    this.alive=true;
-    this.trail=[];
-  }
-  update(dt){
-    this.x+=this.vx*dt; this.y+=this.vy*dt;
-    this.vx*=0.98; this.vy*=0.98;
-    if(this.x<this.radius){this.x=this.radius;this.vx*=-0.4;}
-    if(this.y<this.radius){this.y=this.radius;this.vy*=-0.4;}
-    if(this.x>w-this.radius){this.x=w-this.radius;this.vx*=-0.4;}
-    if(this.y>h-this.radius){this.y=h-this.radius;this.vy*=-0.4;}
-    this.angle+=this.spinSpeed*dt;
-
-    // добавляем позицию для следа
-    this.trail.push({x:this.x, y:this.y, alpha:0.4});
-    if(this.trail.length>30) this.trail.shift();
-    this.trail.forEach(p=>p.alpha-=0.015);
-    this.trail=this.trail.filter(p=>p.alpha>0);
-  }
-  draw(ctx){
-    // рисуем след
-    this.trail.forEach(p=>{
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,this.radius*0.6,0,Math.PI*2);
-      ctx.fillStyle=`rgba(255,255,255,${p.alpha})`;
-      ctx.fill();
-    });
-
-    ctx.save();
-    ctx.translate(this.x,this.y);
-    ctx.rotate(this.angle);
-    for(let i=0;i<3;i++){
-      ctx.beginPath();
-      ctx.moveTo(0,0);
-      ctx.lineTo(this.radius,0);
-      ctx.lineWidth=4;
-      ctx.strokeStyle=this.color;
-      ctx.stroke();
-      ctx.rotate(Math.PI*2/3);
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AMCOIN Clicker</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+    :root {
+      --color-bg: #121212;
+      --color-primary: #00bfa5;
+      --color-primary-dark: #008e75;
+      --color-text: #eee;
+      --color-accent: #ffb300;
+      --color-energy-full: #4caf50;
+      --color-energy-low: #f44336;
+      --transition: 0.3s ease;
     }
-    ctx.restore();
-
-    ctx.fillStyle="#fff";
-    ctx.font=`16px sans-serif`; ctx.textAlign='center';
-    ctx.fillText(this.name,this.x,this.y-this.radius-8);
-    ctx.fillText(Math.round(this.mass),this.x,this.y+this.radius+16);
-  }
-}
-
-class Bonus {
-  constructor(x,y,type){
-    this.x=x; this.y=y; this.radius=10; this.type=type;
-    this.color=type==='boost'?'#ffd166':'#06d6a0';
-    this.alive=true;
-  }
-  draw(ctx){
-    ctx.beginPath(); ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);
-    ctx.fillStyle=this.color; ctx.fill(); ctx.strokeStyle="#fff"; ctx.stroke();
-  }
-}
-
-let player=null;
-let bots=[];
-let bonuses=[];
-let pointer={x:0,y:0,down:false};
-let leaderboard=[];
-
-function spawnGame(name){
-  player=new Spinner(name,w/2,h/2,true);
-  bots=[]; for(let i=0;i<6;i++){bots.push(new Spinner('Bot'+(i+1),rand(50,w-50),rand(50,h-50)));}
-  bonuses=[]; for(let i=0;i<5;i++){bonuses.push(new Bonus(rand(50,w-50),rand(50,h-50),Math.random()<0.5?'boost':'points'));}
-  leaderboard=[];
-}
-
-function handleCollisions(arr){
-  for(let i=0;i<arr.length;i++){
-    for(let j=i+1;j<arr.length;j++){
-      const a=arr[i],b=arr[j];
-      const dx=b.x-a.x,dy=b.y-a.y,dist=Math.hypot(dx,dy);
-      if(dist<a.radius+b.radius){
-        let winner=a.mass>=b.mass?a:b; let loser=winner===a?b:a;
-        let transfer=loser.mass*0.7; winner.mass+=transfer; winner.radius=Math.sqrt(winner.mass);
-        loser.mass-=transfer; loser.radius=Math.sqrt(loser.mass);
-        if(loser.mass<24)loser.alive=false;
-        const overlap=(a.radius+b.radius)-dist;
-        const nx=dx/dist,ny=dy/dist;
-        a.x-=nx*overlap*0.5;a.y-=ny*overlap*0.5; b.x+=nx*overlap*0.5;b.y+=ny*overlap*0.5;
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: var(--color-bg);
+      color: var(--color-text);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+      user-select: none;
+    }
+    #logo {
+      width: 140px;
+      margin-bottom: 20px;
+      filter: drop-shadow(0 0 6px var(--color-primary));
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      max-width: 420px;
+      margin-bottom: 20px;
+    }
+    #langSelect {
+      background: var(--color-primary-dark);
+      border: none;
+      color: var(--color-text);
+      padding: 8px 12px;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+    #langSelect:hover {
+      background: var(--color-primary);
+    }
+    main {
+      text-align: center;
+      max-width: 420px;
+      width: 100%;
+      background: #1e1e1e;
+      border-radius: 12px;
+      padding: 25px 20px 40px;
+      box-shadow: 0 0 20px rgba(0, 191, 165, 0.3);
+    }
+    #welcomeText {
+      font-weight: 600;
+      font-size: 1.3rem;
+      margin-bottom: 15px;
+    }
+    #counter {
+      font-size: 4rem;
+      font-weight: 700;
+      color: var(--color-accent);
+      margin: 15px 0 10px;
+      letter-spacing: 2px;
+      user-select: text;
+    }
+    #clickBtn {
+      width: 100%;
+      font-size: 1.6rem;
+      padding: 15px 0;
+      background: var(--color-primary);
+      border: none;
+      border-radius: 10px;
+      color: var(--color-text);
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 6px var(--color-primary-dark);
+      transition: all var(--transition);
+      user-select: none;
+    }
+    #clickBtn:active {
+      box-shadow: none;
+      transform: translateY(4px);
+    }
+    #loginBtn {
+      margin-top: 20px;
+      width: 100%;
+      font-size: 1.1rem;
+      padding: 12px 0;
+      background: transparent;
+      border: 2px solid var(--color-primary);
+      color: var(--color-primary);
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      user-select: none;
+    }
+    #loginBtn:hover {
+      background: var(--color-primary);
+      color: var(--color-text);
+    }
+    #balance {
+      margin-top: 15px;
+      font-size: 1rem;
+      color: var(--color-primary);
+      user-select: text;
+      min-height: 22px;
+    }
+    #energyContainer {
+      margin: 25px 0 15px;
+      background: #333;
+      border-radius: 30px;
+      height: 22px;
+      width: 100%;
+      max-width: 400px;
+      overflow: hidden;
+      box-shadow: inset 0 0 6px #0008;
+      user-select: none;
+    }
+    #energyBar {
+      height: 100%;
+      background: var(--color-energy-full);
+      width: 100%;
+      max-width: 100%;
+      transition: width 0.3s ease, background-color 0.3s ease;
+      border-radius: 30px 0 0 30px;
+    }
+    #energyText {
+      margin-top: -22px;
+      font-size: 0.9rem;
+      color: var(--color-text);
+      font-weight: 600;
+      user-select: none;
+    }
+    footer {
+      margin-top: auto;
+      font-size: 0.8rem;
+      color: #555;
+      user-select: none;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+    }
+    @media (max-width: 480px) {
+      #counter {
+        font-size: 3rem;
+      }
+      #clickBtn {
+        font-size: 1.3rem;
+      }
+      main {
+        padding: 20px 15px 30px;
       }
     }
-  }
-}
+  </style>
+</head>
+<body>
 
-function handleBonuses(){
-  bonuses.forEach(b=>{
-    if(!b.alive) return;
-    const dx=player.x-b.x, dy=player.y-b.y, d=Math.hypot(dx,dy);
-    if(d<player.radius+b.radius){
-      if(b.type==='boost'){player.vx*=2; player.vy*=2;} 
-      else{player.mass+=20; player.radius=Math.sqrt(player.mass);}
-      b.alive=false;
+<header>
+  <select id="langSelect" aria-label="Select language">
+    <option value="ru">Русский</option>
+    <option value="en">English</option>
+    <option value="hy">Հայերեն</option>
+  </select>
+</header>
+
+<main>
+  <img id="logo" src="https://i.postimg.cc/jjGMZTC1/generated-image-2ce8a2bb716611ef.png" alt="AMCOIN Logo" />
+  <div id="welcomeText"></div>
+  <div id="counter">0</div>
+
+  <div id="energyContainer" aria-label="Energy bar">
+    <div id="energyBar"></div>
+  </div>
+  <div id="energyText"></div>
+
+  <button id="clickBtn" aria-label="Click button"></button>
+
+  <button id="loginBtn" aria-label="Login with TON wallet"></button>
+
+  <div id="balance" aria-live="polite"></div>
+</main>
+
+<footer>
+  AMCOIN Clicker — Demo game &copy; 2025
+</footer>
+
+<script>
+  // Локализация
+  const translations = {
+    ru: {
+      welcome: 'Добро пожаловать в AMCOIN Clicker!',
+      click: 'Кликни меня!',
+      login: 'Войти через TON-кошелек',
+      balance: 'Баланс AMCOIN: ',
+      loggedIn: 'Вы вошли как: ',
+      loginError: 'Ошибка авторизации. Попробуйте снова.',
+      energy: 'Энергия: '
+    },
+    en: {
+      welcome: 'Welcome to AMCOIN Clicker!',
+      click: 'Click me!',
+      login: 'Login with TON Wallet',
+      balance: 'AMCOIN Balance: ',
+      loggedIn: 'Logged in as: ',
+      loginError: 'Authorization error. Try again.',
+      energy: 'Energy: '
+    },
+    hy: {
+      welcome: 'Բարի գալուստ AMCOIN կլիքերին!',
+      click: 'Սեղմիր ինձ!',
+      login: 'Մուտք TON դրամապանակով',
+      balance: 'AMCOIN հաշվեկշիռը՝ ',
+      loggedIn: 'Մուտք գործեցիք՝ ',
+      loginError: 'Մուտքի սխալ։ Փորձեք նորից։',
+      energy: 'Էներգիա՝ '
     }
-  });
-  if(bonuses.filter(b=>b.alive).length<3){
-    bonuses.push(new Bonus(rand(50,w-50),rand(50,h-50),Math.random()<0.5?'boost':'points'));
+  };
+
+  // Переменные
+  let lang = 'ru';
+  let count = 0;
+  let energyMax = 100;
+  let energy = energyMax;
+  let energyConsumption = 15; // сколько энергии уходит за клик
+  let energyRecoveryRate = 10; // энергии в секунду восстанавливается
+  let userAddress = null;
+
+  // Элементы DOM
+  const langSelect = document.getElementById('langSelect');
+  const welcomeText = document.getElementById('welcomeText');
+  const clickBtn = document.getElementById('clickBtn');
+  const loginBtn = document.getElementById('loginBtn');
+  const counterElem = document.getElementById('counter');
+  const balanceElem = document.getElementById('balance');
+  const energyBar = document.getElementById('energyBar');
+  const energyText = document.getElementById('energyText');
+
+  // Обновить интерфейс на выбранном языке
+  function updateTexts() {
+    welcomeText.textContent = translations[lang].welcome;
+    clickBtn.textContent = translations[lang].click;
+    loginBtn.textContent = userAddress
+      ? translations[lang].loggedIn + userAddress
+      : translations[lang].login;
+    balanceElem.textContent = userAddress ? translations[lang].balance + '—' : '';
+    energyText.textContent = translations[lang].energy + Math.floor(energy) + ' / ' + energyMax;
   }
-}
 
-function update(dt){
-  if(!player) return;
-  // движение по вектору к пальцу
-  if(pointer.down){
-    let dx=pointer.x-player.x, dy=pointer.y-player.y;
-    let d=Math.hypot(dx,dy)||1;
-    player.vx+=dx/d*300*dt;
-    player.vy+=dy/d*300*dt;
-  }
-  player.update(dt);
-  bots.forEach(b=>{
-    if(!b.alive) return;
-    let target=Math.random()<0.02?player:bots[Math.floor(Math.random()*bots.length)];
-    let dx=target.x-b.x, dy=target.y-b.y, d=Math.hypot(dx,dy)||1;
-    b.vx+=dx/d*80*dt; b.vy+=dy/d*80*dt; b.update(dt);
+  // Изменить язык
+  langSelect.addEventListener('change', e => {
+    lang = e.target.value;
+    updateTexts();
   });
-  handleCollisions([player,...bots.filter(b=>b.alive)]);
-  handleBonuses();
-  document.getElementById('score').innerText='Очки: '+Math.round(player.mass);
-  updateLeaderboard();
-}
 
-function draw(){
-  if(!player) return;
-  ctx.fillStyle='rgba(6,16,36,0.3)'; ctx.fillRect(0,0,w,h); // легкий "след" на фоне
-  bonuses.forEach(b=>{if(b.alive)b.draw(ctx);});
-  [player,...bots.filter(b=>b.alive)].forEach(sp=>sp.draw(ctx));
-}
+  // Обновить счётчик и интерфейс
+  function updateCounter() {
+    counterElem.textContent = count;
+  }
 
-function updateLeaderboard(){
-  const top=[player,...bots.filter(b=>b.alive)].sort((a,b)=>b.mass-a.mass).slice(0,5);
-  const lbDiv=document.getElementById('leaderboard');
-  lbDiv.innerHTML='<b>Топ:</b><br>'+top.map(sp=>sp.name+': '+Math.round(sp.mass)).join('<br>');
-}
+  // Обновить шкалу энергии
+  function updateEnergyBar() {
+    let percent = (energy / energyMax) * 100;
+    energyBar.style.width = percent + '%';
 
-let last=performance.now();
-function loop(t){ let dt=(t-last)/1000; last=t; update(dt); draw(); requestAnimationFrame(loop); }
+    // Меняем цвет шкалы в зависимости от уровня энергии
+    if (percent > 50) {
+      energyBar.style.backgroundColor = 'var(--color-energy-full)';
+    } else if (percent > 20) {
+      energyBar.style.backgroundColor = '#ffc107'; // желтый
+    } else {
+      energyBar.style.backgroundColor = 'var(--color-energy-low)';
+    }
+    energyText.textContent = translations[lang].energy + Math.floor(energy) + ' / ' + energyMax;
+  }
 
-document.getElementById('startBtn').
+  // Клик по кнопке
+  clickBtn.addEventListener('click', () => {
+    if (energy >= energyConsumption) {
+      count++;
+      energy
